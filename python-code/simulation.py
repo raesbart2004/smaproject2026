@@ -5,6 +5,7 @@ Contains the Simulation-class used in simulation.py.
 This is the file you should run.
 Due to the "if __name__ == "__main__":"-statement.
 """
+import csv
 import re
 import random
 from functools import cmp_to_key
@@ -130,10 +131,10 @@ class Simulation:
             rule (int): The appointment scheduling rule to apply
         """
         self.patients = list()
-        self.inputFileName = filename
+        self.inputFileName = "input-S1-14.txt"
         self.W = W
         self.R = R
-        self.rule = rule
+        self.rule = 1
 
         self.avgElectiveAppWT = 0
         self.avgElectiveScanWT = 0
@@ -565,35 +566,54 @@ class Simulation:
 
     def runSimulations(self) -> None:
         """
-        Function that runs all the simulations.
-
-        @Students: Create the functionality to write the output to a file in here.
-        This is not too difficult. Google helps a lot!
+        Runs the replications and writes results to a CSV file.
         """
         electiveAppWT: float = 0
         electiveScanWT: float = 0
         urgentScanWT: float = 0
         OT: float = 0
         OV: float = 0
+        
         self.setWeekSchedule()
-        print("r \t elAppWT \t elScanWT \t urScanWT \t OT \t OV \n")
-        for r in range(self.R):
-            self.resetSystem()
-            random.seed(r)
-            self.runOneSimulation()
-            electiveAppWT += self.avgElectiveAppWT
-            electiveScanWT += self.avgElectiveScanWT
-            urgentScanWT += self.avgUrgentScanWt
-            OT += self.avgOT
-            OV += self.avgElectiveAppWT * self.weightEl + self.avgUrgentScanWt * self.weightUr
-            print(f"{r} \t {self.avgElectiveAppWT:.2f} \t\t {self.avgElectiveScanWT:.5f} \t {self.avgUrgentScanWt:.2f} \t\t {self.avgOT:.2f} \t {self.avgElectiveAppWT * self.weightEl + self.avgUrgentScanWt * self.weightUr:.2f}")
-        electiveAppWT /= self.R
-        electiveScanWT /= self.R
-        urgentScanWT /= self.R
-        OT /= self.R
-        OV /= self.R
+        
+        # Define the filename for your output
+        output_file = "simulation_results.csv"
+        
+        # Open the file for writing
+        with open(output_file, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            
+            # Write the header row to the CSV
+            writer.writerow(["Replication", "Elective_App_WT", "Elective_Scan_WT", "Urgent_Scan_WT", "Overtime", "Objective_Value"])
+            
+            print("r \t elAppWT \t elScanWT \t urScanWT \t OT \t OV \n")
+            
+            for r in range(self.R):
+                self.resetSystem()
+                random.seed(r)
+                self.runOneSimulation()
+                
+                # Calculate current OV
+                current_OV = self.avgElectiveAppWT * self.weightEl + self.avgUrgentScanWt * self.weightUr
+                
+                # 1. Write the data row to the CSV file
+                writer.writerow([r, self.avgElectiveAppWT, self.avgElectiveScanWT, self.avgUrgentScanWt, self.avgOT, current_OV])
+                
+                # 2. Keep the print statement so you can see progress
+                print(f"{r} \t {self.avgElectiveAppWT:.2f} \t\t {self.avgElectiveScanWT:.5f} \t {self.avgUrgentScanWt:.2f} \t\t {self.avgOT:.2f} \t {current_OV:.2f}")
+                
+                # Accumulate totals for the final average
+                electiveAppWT += self.avgElectiveAppWT
+                electiveScanWT += self.avgElectiveScanWT
+                urgentScanWT += self.avgUrgentScanWt
+                OT += self.avgOT
+                OV += current_OV
+
+        # Calculate Final Averages
         print("--------------------------------------------------------------------------------")
-        print(f"AVG: \t {electiveAppWT:.2f} \t\t {electiveScanWT:.5f} \t {urgentScanWT:.2f} \t\t {OT:.2f} \t {OV:.2f} \n")
+        print(f"AVG \t {electiveAppWT/self.R:.2f} \t\t {electiveScanWT/self.R:.5f} \t {urgentScanWT/self.R:.2f} \t\t {OT/self.R:.2f} \t {OV/self.R:.2f}")
+        print(f"\nResults successfully saved to {output_file}")
+        
 
 
 if __name__ == "__main__":
