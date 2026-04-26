@@ -9,6 +9,7 @@ But why would you, if this is more fun? ;)
 import random
 import math
 
+#generate interarrival times for patients
 def Exponential_distribution(lambda_value) -> float:
     """Exponential distribution
 
@@ -23,6 +24,7 @@ def Exponential_distribution(lambda_value) -> float:
     j2 = -math.log(j1) / lambda_value
     return j2
 
+#generate scan durations and tardiness using the Box-Muller transform
 def Normal_distribution(mean, stdev) -> float:
     """Normal distribution.
 
@@ -46,6 +48,7 @@ def Normal_distribution(mean, stdev) -> float:
     x = v1 * multiplier * stdev + mean
     return x
 
+#decide whether a patient is a no-show
 def Bernouilli_distribution(prob) -> bool:
     """Bernouilli distribution
 

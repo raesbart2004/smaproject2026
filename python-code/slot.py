@@ -2,6 +2,11 @@
 File created by Samuel Bakker.
 Contains the Slot-class used in simulation.py.
 """
+#simple data container representing one time slot in the schedule. 
+#It stores four things: startTime (when the slot begins
+#appTime (when patients are told to arrive — this changes per rule)
+#slotType (elective/urgent/overtime) and patientType. 
+#The weekSchedule in the simulation is a 6×42 grid of these objects.
 class Slot:
     """
     Class for a slot in the Simulation.

@@ -2,7 +2,10 @@
 File created by Samuel Bakker.
 Contains the Patient-class used in simulation.py.
 """
-
+#data container for one patient, storing everything about them: when they called, when they're scheduled, 
+#their tardiness, whether they're a no-show, their scan duration, and their actual scan start time.
+#The two key methods are getAppWT() (appointment waiting time = days waited × 24h + time difference) and 
+#getScanWT() (scan waiting time = actual scan start − expected arrival time).
 class Patient:
     """Patient class
 
