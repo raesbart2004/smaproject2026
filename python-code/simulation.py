@@ -131,7 +131,7 @@ class Simulation:
             rule (int): The appointment scheduling rule to apply
         """
         self.patients = list()
-        self.inputFileName = "input-S1-14.txt"
+        self.inputFileName = r"C:\Users\marleen\Desktop\smaproject2026\input-s3-14.txt.txt"
         self.W = W
         self.R = R
         self.rule = 1
@@ -577,7 +577,7 @@ class Simulation:
         self.setWeekSchedule()
         
         # Define the filename for your output
-        output_file = "simulation_results.csv"
+        output_file = "simulation_results2.csv"
         
         # Open the file for writing
         with open(output_file, mode='w', newline='') as file:
@@ -617,5 +617,5 @@ class Simulation:
 
 
 if __name__ == "__main__":
-    sim = Simulation("../input-S1-14.txt", 100, 1000, 1)
+    sim = Simulation(r"C:\Users\marleen\Desktop\smaproject2026\input-s3-14.txt.txt", 100, 1000, 1)
     sim.runSimulations()
