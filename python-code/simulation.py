@@ -131,10 +131,10 @@ class Simulation:
             rule (int): The appointment scheduling rule to apply
         """
         self.patients = list()
-        self.inputFileName = r"C:\Users\marleen\Desktop\smaproject2026\input-s3-14.txt.txt"
+        self.inputFileName = filename 
         self.W = W
         self.R = R
-        self.rule = 1
+        self.rule = rule
 
         self.avgElectiveAppWT = 0
         self.avgElectiveScanWT = 0
@@ -528,14 +528,29 @@ class Simulation:
                         # FIFO
                         self.weekSchedule[d][s].appTime = time
                     elif (self.rule == 2):
+                        if s<2:
+                            self.weekSchedule[d][s].appTime = 8
+                        else:
+                            if time == 13:
+                                self.weekSchedule[d][s].appTime = time
+                            elif time == 13.25:
+                                self.weekSchedule[d][s].appTime = time - self.slotLength
+                            else:
+                                self.weekSchedule[d][s].appTime = time - self.slotLength #one time slot???
+                        #pass
                         # TODO: Bailey-Welch rule
-                        pass
+                        
                     elif (self.rule == 3):
                         # TODO: Blocking rule
-                        pass
+                        if (s%2 == 0):
+                            self.weekSchedule[d][s].appTime = time
+                        else:
+                            self.weekSchedule[d][s].appTime = time - self.slotLength
+                        #pass
+                    
                     elif (self.rule == 4):
+                        self.weekSchedule[d][s].appTime = time - 0.5*3/60
                         # TODO: Benchmark rule
-                        pass
                 time += self.slotLength
                 if (time == 12):
                     # Lunchbreak, so skip ahead
@@ -577,7 +592,7 @@ class Simulation:
         self.setWeekSchedule()
         
         # Define the filename for your output
-        output_file = "simulation_results2.csv"
+        output_file = "strategy1rule1slots14.csv"
         
         # Open the file for writing
         with open(output_file, mode='w', newline='') as file:
@@ -617,5 +632,5 @@ class Simulation:
 
 
 if __name__ == "__main__":
-    sim = Simulation(r"C:\Users\marleen\Desktop\smaproject2026\input-s3-14.txt.txt", 100, 1000, 1)
+    sim = Simulation(r"C:\Users\marleen\Desktop\smaproject2026\input-S1-14.txt", 500, 13, 4)
     sim.runSimulations()
