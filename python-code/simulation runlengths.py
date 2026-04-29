@@ -580,57 +580,50 @@ class Simulation:
             self.movingAvgOT.append(0.0)
 
     def runSimulations(self) -> None:
-        """
-        Runs the replications and writes results to a CSV file.
-        """
-        electiveAppWT: float = 0
-        electiveScanWT: float = 0
-        urgentScanWT: float = 0
-        OT: float = 0
-        OV: float = 0
-        
         self.setWeekSchedule()
         
-        # Define the filename for your output
-        output_file = "strategy1rule4slots14.csv"
+        # DEFINIEER DEZE HIERBOVEN OM DE CRASH OP TE LOSSEN
+        total_electiveAppWT = 0
+        total_electiveScanWT = 0
+        total_urgentScanWT = 0
+        total_OT = 0
+        total_OV = 0
         
-        # Open the file for writing
-        with open(output_file, mode='w', newline='') as file:
+        output_csv = f"RunLength_Rule{self.rule}_Data.csv"
+        
+        with open(output_csv, mode='w', newline='') as file:
             writer = csv.writer(file)
-            
-            # Write the header row to the CSV
-            writer.writerow(["Replication", "Elective_App_WT", "Elective_Scan_WT", "Urgent_Scan_WT", "Overtime", "Objective_Value"])
-            
-            print("r \t elAppWT \t elScanWT \t urScanWT \t OT \t OV \n")
-            
+            writer.writerow(["Week", "Elective_App_WT", "Urgent_Scan_WT", "Objective_Value"])
+
             for r in range(self.R):
                 self.resetSystem()
                 random.seed(r)
                 self.runOneSimulation()
                 
-                # Calculate current OV
+                # Bereken de resultaten voor de print onderaan
                 current_OV = self.avgElectiveAppWT * self.weightEl + self.avgUrgentScanWt * self.weightUr
+                total_electiveAppWT += self.avgElectiveAppWT
+                total_electiveScanWT += self.avgElectiveScanWT
+                total_urgentScanWT += self.avgUrgentScanWt
+                total_OT += self.avgOT
+                total_OV += current_OV
                 
-                # 1. Write the data row to the CSV file
-                writer.writerow([r, self.avgElectiveAppWT, self.avgElectiveScanWT, self.avgUrgentScanWt, self.avgOT, current_OV])
+                # DEZE LUS SCHRIJFT JE GRAFIEK DATA WEG
+                if self.R == 1:
+                    for w in range(self.W):
+                        el_wt = self.movingAvgElectiveAppWT[w]
+                        ur_wt = self.movingAvgUrgentScanWT[w]
+                        ov_week = (el_wt * self.weightEl) + (ur_wt * self.weightUr)
+                        writer.writerow([w + 1, el_wt, ur_wt, ov_week])
                 
-                # 2. Keep the print statement so you can see progress
-                print(f"{r} \t {self.avgElectiveAppWT:.2f} \t\t {self.avgElectiveScanWT:.5f} \t {self.avgUrgentScanWt:.2f} \t\t {self.avgOT:.2f} \t {current_OV:.2f}")
-                
-                # Accumulate totals for the final average
-                electiveAppWT += self.avgElectiveAppWT
-                electiveScanWT += self.avgElectiveScanWT
-                urgentScanWT += self.avgUrgentScanWt
-                OT += self.avgOT
-                OV += current_OV
+                print(f"Replicatie {r} klaar. OV: {current_OV:.2f}")
 
-        # Calculate Final Averages
+        # DE PRINT DIE NET CRASHTE:
         print("--------------------------------------------------------------------------------")
-        print(f"AVG \t {electiveAppWT/self.R:.2f} \t\t {electiveScanWT/self.R:.5f} \t {urgentScanWT/self.R:.2f} \t\t {OT/self.R:.2f} \t {OV/self.R:.2f}")
-        print(f"\nResults successfully saved to {output_file}")
-        
+        print(f"AVG \t {total_electiveAppWT/self.R:.2f} \t\t {total_electiveScanWT/self.R:.5f} \t {total_urgentScanWT/self.R:.2f} \t\t {total_OT/self.R:.2f} \t {total_OV/self.R:.2f}")
 
-
+       
 if __name__ == "__main__":
-    sim = Simulation(r"C:\Users\marleen\Desktop\smaproject2026\input-S1-14.txt", 50, 1000, 4)
+    path = r"C:\Users\marleen\Desktop\smaproject2026\input-S1-14.txt"
+    sim = Simulation(path, 1000, 1, 2) # W=1000 voor de grafiek, R=1 run
     sim.runSimulations()
