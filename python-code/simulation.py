@@ -556,6 +556,9 @@ class Simulation:
                     # Lunchbreak, so skip ahead
                     time = 13
 
+        # DEBUG: remove after verifying rules differ
+        print(f"Rule {self.rule} - day0 elective appTimes s0-4: {[self.weekSchedule[0][s].appTime for s in range(5)]}")
+
     def resetSystem(self) -> None:
         """
         Resets all variables that are related to 1 replication.
@@ -592,30 +595,34 @@ class Simulation:
         self.setWeekSchedule()
         
         # Define the filename for your output
+<<<<<<< Updated upstream
         output_file = "strategy1rule4slots14.csv"
+=======
+        output_file = "strategy3rule1slots14.csv"
+>>>>>>> Stashed changes
         
         # Open the file for writing
         with open(output_file, mode='w', newline='') as file:
             writer = csv.writer(file)
             
             # Write the header row to the CSV
-            writer.writerow(["Replication", "Elective_App_WT", "Elective_Scan_WT", "Urgent_Scan_WT", "Overtime", "Objective_Value"])
-            
+            writer.writerow(["Replication", "Week", "Elective_App_WT", "Elective_Scan_WT", "Urgent_Scan_WT", "Overtime", "Objective_Value"])
+
             print("r \t elAppWT \t elScanWT \t urScanWT \t OT \t OV \n")
-            
+
             for r in range(self.R):
                 self.resetSystem()
                 random.seed(r)
                 self.runOneSimulation()
-                
-                # Calculate current OV
+
+                # Write one row per week to the CSV
+                for week in range(self.W):
+                    weeklyOV = self.weightEl * self.movingAvgElectiveAppWT[week] + self.weightUr * self.movingAvgUrgentScanWT[week]
+                    writer.writerow([r + 1, week + 1, self.movingAvgElectiveAppWT[week], self.movingAvgElectiveScanWT[week], self.movingAvgUrgentScanWT[week], self.movingAvgOT[week], weeklyOV])
+
+                # Calculate current OV and print progress to terminal
                 current_OV = self.avgElectiveAppWT * self.weightEl + self.avgUrgentScanWt * self.weightUr
-                
-                # 1. Write the data row to the CSV file
-                writer.writerow([r, self.avgElectiveAppWT, self.avgElectiveScanWT, self.avgUrgentScanWt, self.avgOT, current_OV])
-                
-                # 2. Keep the print statement so you can see progress
-                print(f"{r} \t {self.avgElectiveAppWT:.2f} \t\t {self.avgElectiveScanWT:.5f} \t {self.avgUrgentScanWt:.2f} \t\t {self.avgOT:.2f} \t {current_OV:.2f}")
+                print(f"{r+1} \t {self.avgElectiveAppWT:.2f} \t\t {self.avgElectiveScanWT:.5f} \t {self.avgUrgentScanWt:.2f} \t\t {self.avgOT:.2f} \t {current_OV:.2f}")
                 
                 # Accumulate totals for the final average
                 electiveAppWT += self.avgElectiveAppWT
@@ -632,5 +639,9 @@ class Simulation:
 
 
 if __name__ == "__main__":
+<<<<<<< Updated upstream
     sim = Simulation(r"C:\Users\marleen\Desktop\smaproject2026\input-S1-14.txt", 50, 1000, 4)
+=======
+    sim = Simulation(r"input-S3-14.txt", 1000, 30, 1)
+>>>>>>> Stashed changes
     sim.runSimulations()
