@@ -595,12 +595,8 @@ class Simulation:
         self.setWeekSchedule()
         
         # Define the filename for your output
-<<<<<<< Updated upstream
         output_file = "strategy1rule4slots14.csv"
-=======
-        output_file = "strategy3rule1slots14.csv"
->>>>>>> Stashed changes
-        
+
         # Open the file for writing
         with open(output_file, mode='w', newline='') as file:
             writer = csv.writer(file)
@@ -639,9 +635,5 @@ class Simulation:
 
 
 if __name__ == "__main__":
-<<<<<<< Updated upstream
-    sim = Simulation(r"C:\Users\marleen\Desktop\smaproject2026\input-S1-14.txt", 50, 1000, 4)
-=======
     sim = Simulation(r"input-S3-14.txt", 1000, 30, 1)
->>>>>>> Stashed changes
     sim.runSimulations()
