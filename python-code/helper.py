@@ -60,3 +60,22 @@ def Bernouilli_distribution(prob) -> bool:
     """
     j1 = random.random()
     return j1 < prob
+
+def Exponential_distribution_pair(lambda_value) -> tuple[float, float]:
+    """
+    Returns (j2, j2_inv) using antithetic uniform variables.
+    """
+    j1 = random.randint(0, 1000) / 1000
+
+    # avoid log(0)
+    if j1 == 0:
+        j1 = 0.0001
+    if j1 == 1:
+        j1 = 0.9999
+
+    j1_inv = 1 - j1
+
+    j2 = -math.log(j1) / lambda_value
+    j2_inv = -math.log(j1_inv) / lambda_value
+
+    return j2, j2_inv
