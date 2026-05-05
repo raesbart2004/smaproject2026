@@ -9,9 +9,6 @@ import csv
 import re
 import random
 from functools import cmp_to_key
-import math
-import statistics
-from scipy.stats import t
 
 from helper import Exponential_distribution, Normal_distribution, Bernouilli_distribution
 from slot import Slot
@@ -637,30 +634,26 @@ class Simulation:
         
     def runBatchMeans(self) -> None:
         """
-        Performs Batch Means analysis while keeping runSimulations() unchanged.
+        Performs Batch Means analysis and saves results to Excel.
 
-        Uses:
-            - ONE long replication
-            - Warm-up = 125 weeks
-            - Batch means on weekly objective values
-
-        Recommended call:
-            sim = Simulation("input-S1-14.txt", 3125, 1, 1)
-            sim.runBatchMeans()
+        Output file:
+            batch_means_results.xlsx
         """
 
         import math
         import random
         import statistics
+        import pandas as pd
         from scipy.stats import t
 
         # -----------------------------------------
         # SETTINGS
         # -----------------------------------------
         warmup = 125
-        L = 30                 # number of batches
+        L = 30
         alpha = 0.05
         seed = 1
+        output_file = "batch_means_results.xlsx"
         # -----------------------------------------
 
         self.setWeekSchedule()
@@ -683,7 +676,7 @@ class Simulation:
             weeklyOV.append(ov)
 
         # -----------------------------------------
-        # Remove warm-up period
+        # Remove warm-up
         # -----------------------------------------
         data = weeklyOV[warmup:]
 
@@ -701,6 +694,7 @@ class Simulation:
         # Compute batch means
         # -----------------------------------------
         batch_means = []
+        batch_rows = []
 
         for l in range(L):
             start = l * M
@@ -710,6 +704,13 @@ class Simulation:
             bm = sum(batch) / M
             batch_means.append(bm)
 
+            batch_rows.append({
+                "Batch": l + 1,
+                "Start_Week": warmup + start + 1,
+                "End_Week": warmup + end,
+                "Batch_Mean_OV": bm
+            })
+
         # -----------------------------------------
         # Statistics
         # -----------------------------------------
@@ -717,14 +718,14 @@ class Simulation:
         s2 = statistics.variance(batch_means)
         var_mean = s2 / L
 
-        tcrit = t.ppf(0.975, L - 1)
+        tcrit = t.ppf(1 - alpha/2, L - 1)
         halfwidth = tcrit * math.sqrt(var_mean)
 
         lower = grand_mean - halfwidth
         upper = grand_mean + halfwidth
 
         # -----------------------------------------
-        # Print results
+        # Console output
         # -----------------------------------------
         print("---------------------------------------------------")
         print("BATCH MEANS ANALYSIS")
@@ -735,14 +736,32 @@ class Simulation:
         print("Batch size            :", M)
         print("Weeks used            :", used_n)
 
-        print("\nBatch Means:")
-        for i, bm in enumerate(batch_means, 1):
-            print(f"Batch {i:2d}: {bm:.4f}")
-
         print("\nEstimated Mean =", round(grand_mean, 4))
-        print("Variance       =", round(var_mean, 4))
+        print("Variance       =", round(var_mean, 6))
         print(f"95% CI         = [{lower:.4f}, {upper:.4f}]")
         print("---------------------------------------------------")
+
+        # -----------------------------------------
+        # Save to Excel
+        # -----------------------------------------
+        df_batches = pd.DataFrame(batch_rows)
+
+        df_summary = pd.DataFrame([{
+            "Total_Weeks": self.W,
+            "Warmup": warmup,
+            "Batches": L,
+            "Batch_Size": M,
+            "Estimated_Mean": grand_mean,
+            "Variance": var_mean,
+            "CI_Lower": lower,
+            "CI_Upper": upper
+        }])
+
+        with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
+            df_batches.to_excel(writer, sheet_name="BatchMeans", index=False)
+            df_summary.to_excel(writer, sheet_name="Summary", index=False)
+
+        print(f"\nResults saved to {output_file}")
 
 if __name__ == "__main__":
     sim = Simulation(r"input-S1-14.txt", 3125, 1, 1)
