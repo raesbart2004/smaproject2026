@@ -9,6 +9,9 @@ import csv
 import re
 import random
 from functools import cmp_to_key
+import math
+import statistics
+from scipy.stats import t
 
 from helper import Exponential_distribution, Normal_distribution, Bernouilli_distribution
 from slot import Slot
@@ -632,8 +635,116 @@ class Simulation:
         print(f"AVG \t {electiveAppWT/self.R:.2f} \t\t {electiveScanWT/self.R:.5f} \t {urgentScanWT/self.R:.2f} \t\t {OT/self.R:.2f} \t {OV/self.R:.2f}")
         print(f"\nResults successfully saved to {output_file}")
         
+    def runBatchMeans(self) -> None:
+        """
+        Performs Batch Means analysis while keeping runSimulations() unchanged.
 
+        Uses:
+            - ONE long replication
+            - Warm-up = 125 weeks
+            - Batch means on weekly objective values
+
+        Recommended call:
+            sim = Simulation("input-S1-14.txt", 3125, 1, 1)
+            sim.runBatchMeans()
+        """
+
+        import math
+        import random
+        import statistics
+        from scipy.stats import t
+
+        # -----------------------------------------
+        # SETTINGS
+        # -----------------------------------------
+        warmup = 125
+        L = 30                 # number of batches
+        alpha = 0.05
+        seed = 1
+        # -----------------------------------------
+
+        self.setWeekSchedule()
+
+        # One long run
+        self.resetSystem()
+        random.seed(seed)
+        self.runOneSimulation()
+
+        # -----------------------------------------
+        # Collect weekly objective values
+        # -----------------------------------------
+        weeklyOV = []
+
+        for w in range(self.W):
+            ov = (
+                self.weightEl * self.movingAvgElectiveAppWT[w]
+                + self.weightUr * self.movingAvgUrgentScanWT[w]
+            )
+            weeklyOV.append(ov)
+
+        # -----------------------------------------
+        # Remove warm-up period
+        # -----------------------------------------
+        data = weeklyOV[warmup:]
+
+        if len(data) < L:
+            raise ValueError("Not enough observations after warmup.")
+
+        # -----------------------------------------
+        # Batch size
+        # -----------------------------------------
+        M = len(data) // L
+        used_n = L * M
+        data = data[:used_n]
+
+        # -----------------------------------------
+        # Compute batch means
+        # -----------------------------------------
+        batch_means = []
+
+        for l in range(L):
+            start = l * M
+            end = (l + 1) * M
+            batch = data[start:end]
+
+            bm = sum(batch) / M
+            batch_means.append(bm)
+
+        # -----------------------------------------
+        # Statistics
+        # -----------------------------------------
+        grand_mean = statistics.mean(batch_means)
+        s2 = statistics.variance(batch_means)
+        var_mean = s2 / L
+
+        tcrit = t.ppf(0.975, L - 1)
+        halfwidth = tcrit * math.sqrt(var_mean)
+
+        lower = grand_mean - halfwidth
+        upper = grand_mean + halfwidth
+
+        # -----------------------------------------
+        # Print results
+        # -----------------------------------------
+        print("---------------------------------------------------")
+        print("BATCH MEANS ANALYSIS")
+        print("---------------------------------------------------")
+        print("Total weeks simulated :", self.W)
+        print("Warm-up removed       :", warmup)
+        print("Batches               :", L)
+        print("Batch size            :", M)
+        print("Weeks used            :", used_n)
+
+        print("\nBatch Means:")
+        for i, bm in enumerate(batch_means, 1):
+            print(f"Batch {i:2d}: {bm:.4f}")
+
+        print("\nEstimated Mean =", round(grand_mean, 4))
+        print("Variance       =", round(var_mean, 4))
+        print(f"95% CI         = [{lower:.4f}, {upper:.4f}]")
+        print("---------------------------------------------------")
 
 if __name__ == "__main__":
-    sim = Simulation(r"input-S3-14.txt", 1000, 30, 1)
-    sim.runSimulations()
+    sim = Simulation(r"input-S1-14.txt", 3125, 1, 1)
+    # sim.runSimulations()
+    sim.runBatchMeans()
