@@ -13,7 +13,6 @@ from openpyxl import Workbook
 
 from helper import (
     Exponential_distribution,
-    Exponential_distribution_pair,
     Normal_distribution,
     Bernouilli_distribution
 )
@@ -588,113 +587,6 @@ class Simulation:
             self.movingAvgUrgentScanWT.append(0.0)
             self.movingAvgOT.append(0.0)
         
-    def generatePatientsAT(self) -> None:
-        arrivalTimeNext = 0.0
-        counter = 0
-
-        for w in range(self.W):
-            for d in range(self.D):
-
-                # ELECTIVE PATIENTS (ANTITHETIC)
-                if d < self.D - 1:
-                    arrivalTimeNext = 8
-                    while True:
-                        j2, j2_inv = Exponential_distribution_pair(self.lambdaElective)
-
-                        arrivalTimeNext += j2 * (17 - 8)
-                        if arrivalTimeNext >= 17:
-                            break
-
-                        tardiness = Normal_distribution(self.meanTardiness, self.stdevTardiness) / 60
-                        noShow = Bernouilli_distribution(self.probNoShow)
-                        duration = Normal_distribution(self.meanElectiveDuration, self.stdevElectiveDuration) / 60
-
-                        self.patients.append(
-                            Patient(counter, 1, 0, w, d, arrivalTimeNext,
-                                    tardiness, noShow, duration)
-                        )
-                        counter += 1
-
-                # URGENT PATIENTS (ANTITHETIC)
-                lmbd = self.lambdaUrgent[0]
-                endTime = 17
-
-                if d in [3, 5]:
-                    lmbd = self.lambdaUrgent[1]
-                    endTime = 12
-
-                arrivalTimeNext = 8
-
-                while True:
-                    j2, j2_inv = Exponential_distribution_pair(lmbd)
-
-                    arrivalTimeNext += j2_inv * (endTime - 8)
-                    if arrivalTimeNext >= endTime:
-                        break
-
-                    scanType = self.getRandomScanType()
-                    duration = Normal_distribution(
-                        self.meanUrgentDuration[scanType],
-                        self.stdevUrgentDuration[scanType]
-                    ) / 60
-
-                    self.patients.append(
-                        Patient(counter, 2, scanType, w, d,
-                                arrivalTimeNext, 0, 0, duration)
-                    )
-                    counter += 1
-    
-    def runOneSimulationAT(self) -> None:
-        self.generatePatientsAT()
-        self.schedulePatients()
-
-        self.patients = sorted(
-            self.patients,
-            key=cmp_to_key(Simulation.sortPatientsOnAppTime)
-        )
-
-        # identical logic to runOneSimulation()
-        prevWeek = 0
-        prevDay = -1
-        numberOfPatientsWeek = [0, 0]
-        numberOfPatients = [0, 0]
-        prevScanEndTime = 0
-        prevIsNoShow = False
-
-        for patient in self.patients:
-            if patient.scanWeek == -1:
-                break
-
-            arrivalTime = patient.appTime + patient.tardiness
-
-            if not patient.isNoShow:
-                if (patient.scanWeek != prevWeek) or (patient.scanDay != prevDay):
-                    patient.scanTime = arrivalTime
-                else:
-                    if prevIsNoShow:
-                        patient.scanTime = max(
-                            self.weekSchedule[patient.scanDay][patient.slotNr].startTime,
-                            max(prevScanEndTime, arrivalTime)
-                        )
-                    else:
-                        patient.scanTime = max(prevScanEndTime, arrivalTime)
-
-                wt = patient.getScanWT()
-
-                if patient.patientType == 1:
-                    self.movingAvgElectiveScanWT[patient.scanWeek] += wt
-                    self.avgElectiveScanWT += wt
-                else:
-                    self.movingAvgUrgentScanWT[patient.scanWeek] += wt
-                    self.avgUrgentScanWt += wt
-
-                numberOfPatientsWeek[patient.patientType - 1] += 1
-                numberOfPatients[patient.patientType - 1] += 1
-
-            prevScanEndTime = patient.scanTime + patient.duration
-            prevWeek = patient.scanWeek
-            prevDay = patient.scanDay
-
     def runSimulations(self) -> None:
         electiveAppWT = 0
         electiveScanWT = 0
@@ -705,44 +597,26 @@ class Simulation:
         self.setWeekSchedule()
 
         wb = Workbook()
-
-        # ---------------- NORMAL SHEET ----------------
-        ws_normal = wb.active
-        ws_normal.title = "Normal"
-
-        ws_normal.append([
+        ws = wb.active
+        ws.append([
             "Replication", "Week",
             "Elective_App_WT", "Elective_Scan_WT",
             "Urgent_Scan_WT", "Overtime", "Objective_Value"
         ])
 
-        # ---------------- ANTITHETIC SHEET ----------------
-        ws_at = wb.create_sheet("Antithetic")
-
-        ws_at.append([
-            "Replication", "Week",
-            "Elective_App_WT", "Elective_Scan_WT",
-            "Urgent_Scan_WT", "Overtime", "Objective_Value"
-        ])
-
-        print("r \t elAppWT \t elScanWT \t urScanWT \t OT \t OV \n")
+        print(f"{'r':>4}  {'elAppWT':>10}  {'elScanWT':>10}  {'urScanWT':>10}  {'OT':>8}  {'OV':>8}\n")
 
         for r in range(self.R):
-
-            # ================= NORMAL RUN =================
             self.resetSystem()
             random.seed(r)
             self.runOneSimulation()
 
-            normal_results = []
-
             for week in range(self.W):
                 weeklyOV = (
                     self.weightEl * self.movingAvgElectiveAppWT[week] +
                     self.weightUr * self.movingAvgUrgentScanWT[week]
                 )
-
-                normal_results.append([
+                ws.append([
                     r + 1, week + 1,
                     self.movingAvgElectiveAppWT[week],
                     self.movingAvgElectiveScanWT[week],
@@ -751,65 +625,30 @@ class Simulation:
                     weeklyOV
                 ])
 
-                ws_normal.append(normal_results[-1])
+            replicationOV = self.weightEl * self.avgElectiveAppWT + self.weightUr * self.avgUrgentScanWt
 
-            base_electiveAppWT = self.avgElectiveAppWT
-            base_electiveScanWT = self.avgElectiveScanWT
-            base_urgentScanWT = self.avgUrgentScanWt
-            base_OT = self.avgOT
+            print(f"{r+1:>4}  {self.avgElectiveAppWT:>10.2f}  {self.avgElectiveScanWT:>10.2f}  "
+                f"{self.avgUrgentScanWt:>10.2f}  {self.avgOT:>8.2f}  {replicationOV:>8.2f}")
 
-            # ================= ANTITHETIC RUN =================
-            self.resetSystem()
-            random.seed(r)
-            self.runOneSimulationAT()
+            electiveAppWT += self.avgElectiveAppWT
+            electiveScanWT += self.avgElectiveScanWT
+            urgentScanWT += self.avgUrgentScanWt
+            OT += self.avgOT
+            OV += replicationOV
 
-            at_electiveAppWT = self.avgElectiveAppWT
-            at_electiveScanWT = self.avgElectiveScanWT
-            at_urgentScanWT = self.avgUrgentScanWt
-            at_OT = self.avgOT
-
-            # write antithetic results per week
-            for week in range(self.W):
-                weeklyOV = (
-                    self.weightEl * self.movingAvgElectiveAppWT[week] +
-                    self.weightUr * self.movingAvgUrgentScanWT[week]
-                )
-
-                ws_at.append([
-                    r + 1, week + 1,
-                    self.movingAvgElectiveAppWT[week],
-                    self.movingAvgElectiveScanWT[week],
-                    self.movingAvgUrgentScanWT[week],
-                    self.movingAvgOT[week],
-                    weeklyOV
-                ])
-
-            # ================= AVERAGE =================
-            final_OV = (
-                0.5 * (base_electiveAppWT + at_electiveAppWT) * self.weightEl +
-                0.5 * (base_urgentScanWT + at_urgentScanWT) * self.weightUr
-            )
-
-            print(f"{r+1} \t {base_electiveAppWT:.2f} \t {base_electiveScanWT:.2f} "
-                f"\t {base_urgentScanWT:.2f} \t {base_OT:.2f} \t {final_OV:.2f}")
-
-            electiveAppWT += base_electiveAppWT
-            electiveScanWT += base_electiveScanWT
-            urgentScanWT += base_urgentScanWT
-            OT += base_OT
-            OV += final_OV
-
-        # ================= SAVE FILE =================
-        output_file = f"strategy1_rule{self.rule}_W{self.W}_R{self.R}.xlsx"
+        match = re.search(r'S(\d+)-(\d+)', self.inputFileName)
+        strategyNr = match.group(1)
+        urgentSlotCount = match.group(2)
+        output_file = f"strategy{strategyNr}_rule{self.rule}_slots{urgentSlotCount}_W{self.W}_R{self.R}.xlsx"
         wb.save(output_file)
 
         print("--------------------------------------------------------------------------------")
-        print(f"AVG \t {electiveAppWT/self.R:.2f} \t {electiveScanWT/self.R:.2f} "
-            f"\t {urgentScanWT/self.R:.2f} \t {OT/self.R:.2f} \t {OV/self.R:.2f}")
+        print(f"{'AVG':>4}  {electiveAppWT/self.R:>10.2f}  {electiveScanWT/self.R:>10.2f}  "
+            f"{urgentScanWT/self.R:>10.2f}  {OT/self.R:>8.2f}  {OV/self.R:>8.2f}")
 
         print(f"\nSaved to {output_file}")
 
 if __name__ == "__main__":
-    sim = Simulation(r"input-S1-14.txt", 100, 30, 1)
+    sim = Simulation(r"input-S1-14.txt", 500, 30, 4)
     sim.runSimulations()
 
