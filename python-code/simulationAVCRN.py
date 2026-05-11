@@ -685,89 +685,86 @@ class Simulation:
 if __name__ == "__main__":
     import openpyxl
     import math
+    import os
 
-    # Instellingen
-    path = r"C:\Users\marleen\Desktop\smaproject2026\input-S1-14.txt"
-    W = 500  # Aantal weken (na warm-up)
-    R = 30   # Aantal replicaties
-    rules_to_compare = [1, 2]
-    differences = []
+    # --- INSTELLINGEN ---
+    # Pas hier enkel het bestand aan dat je wilt runnen (bijv. S1-12, S2-14, etc.)
 
-    # Maak een nieuw Excel bestand aan voor de vergelijking (CRN + AV)
+    input_path = r"C:\Users\Gebruiker\Desktop\smaproject2026\input-S3-16.txt"
+    W = 500  # Weken
+    R = 12   # Replicaties
+    rules_to_test = [1, 2, 3, 4] # We testen ze nu alle 4 tegelijk!
+    
+    # Map voor resultaten aanmaken
+    if not os.path.exists("Resultaten"):
+        os.makedirs("Resultaten")
+
+    # Naam bepalen voor output (bijv. Resultaat_input-S1-12.xlsx)
+    strategy_name = os.path.splitext(os.path.basename(input_path))[0]
+    output_filename = os.path.join("Resultaten", f"Resultaat_{strategy_name}.xlsx")
+
+    # Data containers
+    raw_data_per_rule = {rule: [] for rule in rules_to_test}
+
+    # Excel initialisatie
     wb_final = openpyxl.Workbook()
     ws = wb_final.active
-    ws.title = "CRN_AV_Comparison"
-    ws.append(["Replicatie", "OV_Regel_1 (AV average)", "OV_Regel_2 (AV average)", "Verschil (D_r)"])
+    ws.title = "Simulatie_Data"
+    
+    # Header maken voor Excel (Replicatie, Regel 1, Regel 2, Regel 3, Regel 4)
+    header = ["Replicatie"] + [f"OV_Regel_{r}" for r in rules_to_test]
+    ws.append(header)
 
-    print(f"\nSTART SIMULATIE VERGELIJKING (CRN + AV)")
-    print(f"{'Replicatie':<12} | {'Regel 1 OV':<12} | {'Regel 2 OV':<12} | {'Verschil':<12}")
-    print("-" * 65)
+    print(f"\n" + "="*80)
+    print(f"RUNNING EXPERIMENT: {strategy_name}")
+    print(f"Vergelijking van alle 4 de regels over {R} replicaties (AV + CRN)")
+    print("="*80)
 
     for r in range(R):
-        # CRN: Dezelfde seed voor beide regels binnen deze replicatie
+        # CRN: Zelfde seed voor alle 4 de regels binnen deze replicatie
         current_seed = 1000 + r 
-        results_for_this_rep = {}
+        row_results = [r + 1]
         
-        for rule in rules_to_compare:
-            # Reset seed voor synchronisatiegi
+        for rule in rules_to_test:
             random.seed(current_seed)
-            
-            # Maak simulatie object (R=1 want we loopen zelf over R)
-            sim = Simulation(path, W, 1, rule) 
-            
-            # Voer AV-paar uit en krijg het gemiddelde terug
-            combined_ov = sim.runSimulations() 
-            results_for_this_rep[rule] = combined_ov
+            sim = Simulation(input_path, W, 1, rule) 
+            combined_ov = sim.runSimulations() # Gemiddelde van AV-paar
+            raw_data_per_rule[rule].append(combined_ov)
+            row_results.append(combined_ov)
         
-        # Bereken het verschil (Paired Difference)
-        diff = results_for_this_rep[2] - results_for_this_rep[1]
-        differences.append(diff)
+        ws.append(row_results)
+        # Print voortgang voor de eerste paar regels
+        if (r+1) % 5 == 0 or r == 0:
+            print(f"Voortgang: Replicatie {r+1}/{R} voltooid...")
+
+    # ================= STATISTISCHE ANALYSE PER REGEL =================
+    n = len(raw_data_per_rule[1])
+    t_val = 2.045 # t-waarde voor df=29
+
+    ws.append([])
+    ws.append(["STATISTIEK PER REGEL (VOOR DE GRAFIEK BOLLETJES)"])
+    ws.append(["Regel", "Ondergrens (95%)", "Gemiddelde (Punt)", "Bovengrens (95%)"])
+
+    print("\n" + "-"*55)
+    print(f"{'REGEL':<10} | {'ONDERGRENS':<12} | {'GEMIDDELDE':<12} | {'BOVENGRENS':<12}")
+    print("-" * 55)
+
+    for rule in rules_to_test:
+        data = raw_data_per_rule[rule]
+        avg = sum(data) / n
+        sd = math.sqrt(sum([(x - avg)**2 for x in data]) / (n - 1))
+        h = t_val * (sd / math.sqrt(n))
+        
+        lower = avg - h
+        upper = avg + h
         
         # Schrijf naar Excel
-        ws.append([r + 1, results_for_this_rep[1], results_for_this_rep[2], diff])
-        
-        print(f"{r+1:<12} | {results_for_this_rep[1]:<12.4f} | {results_for_this_rep[2]:<12.4f} | {diff:<12.4f}")
+        ws.append([f"Regel {rule}", lower, avg, upper])
+        # Print naar console
+        print(f"Regel {rule:<5} | {lower:<12.5f} | {avg:<12.5f} | {upper:<12.5f}")
 
-    # ================= STATISTISCHE ANALYSE (95% CI) =================
-    n = len(differences)
-    avg_D = sum(differences) / n
-    
-    # Bereken standaardafwijking van de verschillen (S_D)
-    variance_D = sum([(d - avg_D)**2 for d in differences]) / (n - 1)
-    sd_D = math.sqrt(variance_D)
-    
-    # T-waarde voor 95% CI (alpha=0.05) en df=29 is 2.045
-    t_value = 2.045 
-    standard_error = sd_D / math.sqrt(n)
-    half_width = t_value * standard_error
-    
-    lower_bound = avg_D - half_width
-    upper_bound = avg_D + half_width
-
-    # Samenvatting toevoegen aan Excel
-    ws.append([])
-    ws.append(["GEMIDDELD VERSCHIL", "", "", avg_D])
-    ws.append(["STANDAARDAFWIJKING", "", "", sd_D])
-    ws.append(["95% CI ONDERGRENS", "", "", lower_bound])
-    ws.append(["95% CI BOVENGRENS", "", "", upper_bound])
-
-    # Opslaan van het bestand
-    wb_final.save("Vergelijking_Regels_CRN_AV.xlsx")
-    
-    # Print resultaten naar console
-    print("-" * 65)
-    print(f"RESULTATEN OVER {R} REPLICATIES:")
-    print(f"Gemiddeld Verschil (D-bar): {avg_D:.6f}")
-    print(f"Standaardafwijking (S_D):    {sd_D:.6f}")
-    print(f"95% Betrouwbaarheidsinterval: [{lower_bound:.6f}, {upper_bound:.6f}]")
-    print("-" * 65)
-
-    if upper_bound < 0:
-        print("CONCLUSIE: Regel 2 is statistisch significant beter dan Regel 1.")
-    elif lower_bound > 0:
-        print("CONCLUSIE: Regel 1 is statistisch significant beter dan Regel 2.")
-    else:
-        print("CONCLUSIE: Geen significant verschil aangetoond (0 ligt binnen het CI).")
-    
-    print(f"\nAlle data is opgeslagen in 'Vergelijking_Regels_CRN_AV.xlsx'")
+    wb_final.save(output_filename)
+    print("-" * 55)
+    print(f"\nKlaar! Resultaten voor {strategy_name} staan in: {output_filename}")
+    print("="*80)
 
