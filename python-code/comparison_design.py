@@ -684,87 +684,290 @@ class Simulation:
 
 if __name__ == "__main__":
     import openpyxl
-    import math
     import os
+    import random
 
-    # --- INSTELLINGEN ---
-    # Pas hier enkel het bestand aan dat je wilt runnen (bijv. S1-12, S2-14, etc.)
+    # ============================================================
+    # COMPARISON DESIGN
+    # ============================================================
 
-    input_path = "../input-S3-14.txt"
-    W = 500  # Weken
-    R = 12   # Replicaties
-    rules_to_test = [1, 2, 3, 4] # We testen ze nu alle 4 tegelijk!
-    
-    # Map voor resultaten aanmaken
+    W = 500
+    R = 12
+
+    slots_to_test = [12, 13]
+    rules_to_test = [2, 4]
+    strategies_to_test = [2, 3]
+
+    def get_input_path(strategy, slots):
+        return f"../input-S{strategy}-{slots}.txt"
+
     if not os.path.exists("Resultaten"):
         os.makedirs("Resultaten")
 
-    # Naam bepalen voor output (bijv. Resultaat_input-S1-12.xlsx)
-    strategy_name = os.path.splitext(os.path.basename(input_path))[0]
-    output_filename = os.path.join("Resultaten", f"Resultaat_{strategy_name}.xlsx")
+    output_filename = os.path.join(
+        "Resultaten",
+        "Comparison_Design.xlsx"
+    )
 
-    # Data containers
-    raw_data_per_rule = {rule: [] for rule in rules_to_test}
+    # ============================================================
+    # CREATE DESIGN POINTS
+    # ============================================================
 
-    # Excel initialisatie
-    wb_final = openpyxl.Workbook()
-    ws = wb_final.active
-    ws.title = "Simulatie_Data"
-    
-    # Header maken voor Excel (Replicatie, Regel 1, Regel 2, Regel 3, Regel 4)
-    header = ["Replicatie"] + [f"OV_Regel_{r}" for r in rules_to_test]
-    ws.append(header)
+    design_points = []
+    dp = 1
 
-    print(f"\n" + "="*80)
-    print(f"RUNNING EXPERIMENT: {strategy_name}")
-    print(f"Vergelijking van alle 4 de regels over {R} replicaties (AV + CRN)")
-    print("="*80)
-
-    for r in range(R):
-        # CRN: Zelfde seed voor alle 4 de regels binnen deze replicatie
-        current_seed = 1000 + r 
-        row_results = [r + 1]
-        
+    for slots in slots_to_test:
         for rule in rules_to_test:
-            random.seed(current_seed)
-            sim = Simulation(input_path, W, 1, rule) 
-            combined_ov = sim.runSimulations() # Gemiddelde van AV-paar
-            raw_data_per_rule[rule].append(combined_ov)
-            row_results.append(combined_ov)
-        
-        ws.append(row_results)
-        # Print voortgang voor de eerste paar regels
-        if (r+1) % 5 == 0 or r == 0:
-            print(f"Voortgang: Replicatie {r+1}/{R} voltooid...")
+            for strategy in strategies_to_test:
 
-    # ================= STATISTISCHE ANALYSE PER REGEL =================
-    n = len(raw_data_per_rule[1])
-    t_val = 2.045 # t-waarde voor df=29
+                design_points.append({
+                    "DP": f"X{dp}",
+                    "Slots": slots,
+                    "Rule": rule,
+                    "Strategy": strategy
+                })
 
-    ws.append([])
-    ws.append(["STATISTIEK PER REGEL (VOOR DE GRAFIEK BOLLETJES)"])
-    ws.append(["Regel", "Ondergrens (95%)", "Gemiddelde (Punt)", "Bovengrens (95%)"])
+                dp += 1
 
-    print("\n" + "-"*55)
-    print(f"{'REGEL':<10} | {'ONDERGRENS':<12} | {'GEMIDDELDE':<12} | {'BOVENGRENS':<12}")
-    print("-" * 55)
+    # ============================================================
+    # EXCEL SETUP
+    # ============================================================
 
-    for rule in rules_to_test:
-        data = raw_data_per_rule[rule]
-        avg = sum(data) / n
-        sd = math.sqrt(sum([(x - avg)**2 for x in data]) / (n - 1))
-        h = t_val * (sd / math.sqrt(n))
-        
-        lower = avg - h
-        upper = avg + h
-        
-        # Schrijf naar Excel
-        ws.append([f"Regel {rule}", lower, avg, upper])
-        # Print naar console
-        print(f"Regel {rule:<5} | {lower:<12.5f} | {avg:<12.5f} | {upper:<12.5f}")
+    wb = openpyxl.Workbook()
 
-    wb_final.save(output_filename)
-    print("-" * 55)
-    print(f"\nKlaar! Resultaten voor {strategy_name} staan in: {output_filename}")
+    ws_raw = wb.active
+    ws_raw.title = "Raw_Objective"
+
+    ws_raw.append(
+        ["Replication"] +
+        [d["DP"] for d in design_points]
+    )
+
+    results = {
+        d["DP"]: []
+        for d in design_points
+    }
+
+    print("\n" + "="*80)
+    print("RUNNING COMPARISON DESIGN")
     print("="*80)
 
+    # ============================================================
+    # RUN ALL DESIGN POINTS
+    # ============================================================
+
+    for r in range(1, R + 1):
+
+        row = [r]
+
+        # CRN
+        current_seed = 1000 + r
+
+        for d in design_points:
+
+            input_path = get_input_path(
+                d["Strategy"],
+                d["Slots"]
+            )
+
+            rule = d["Rule"]
+
+            random.seed(current_seed)
+
+            sim = Simulation(
+                input_path,
+                W,
+                1,
+                rule
+            )
+
+            ov = sim.runSimulations()
+
+            results[d["DP"]].append(ov)
+
+            row.append(ov)
+
+        ws_raw.append(row)
+
+        print(f"Replication {r}/{R} finished")
+
+    # ============================================================
+    # DESIGN POINT SHEET
+    # ============================================================
+
+    ws_design = wb.create_sheet("Design_Points")
+
+    ws_design.append([
+        "Design point",
+        "#Slots",
+        "Rule",
+        "Strategy"
+    ])
+
+    for d in design_points:
+
+        ws_design.append([
+            d["DP"],
+            d["Slots"],
+            d["Rule"],
+            d["Strategy"]
+        ])
+
+    # ============================================================
+    # SUMMARY
+    # ============================================================
+
+    ws_summary = wb.create_sheet("Summary")
+
+    ws_summary.append([
+        "Design point",
+        "#Slots",
+        "Rule",
+        "Strategy",
+        "Mean OV",
+        "Std Dev"
+    ])
+
+    ranking = []
+
+    for d in design_points:
+
+        data = results[d["DP"]]
+
+        avg = sum(data) / len(data)
+
+        sd = (
+            sum((x - avg) ** 2 for x in data)
+            / (len(data) - 1)
+        ) ** 0.5
+
+        ws_summary.append([
+            d["DP"],
+            d["Slots"],
+            d["Rule"],
+            d["Strategy"],
+            avg,
+            sd
+        ])
+
+        ranking.append((avg, d))
+
+    # ============================================================
+    # RANKING
+    # ============================================================
+
+    ranking.sort(key=lambda x: x[0])
+
+    ws_rank = wb.create_sheet("Ranking")
+
+    ws_rank.append([
+        "Rank",
+        "Design point",
+        "#Slots",
+        "Rule",
+        "Strategy",
+        "Mean OV"
+    ])
+
+    for rank, (avg, d) in enumerate(ranking, start=1):
+
+        ws_rank.append([
+            rank,
+            d["DP"],
+            d["Slots"],
+            d["Rule"],
+            d["Strategy"],
+            avg
+        ])
+
+    # ============================================================
+    # PAIRWISE COMPARISONS
+    # ============================================================
+
+    ws_pair = wb.create_sheet("Pairwise_Comparisons")
+
+    ws_pair.append([
+        "Pair",
+        "Mean difference Xi-Xj",
+        "Std Dev difference",
+        "Half-width",
+        "CI-",
+        "CI+",
+        "Conclusion"
+    ])
+
+    t_value = 3.611
+
+    for i in range(len(design_points)):
+
+        for j in range(i + 1, len(design_points)):
+
+            Xi = design_points[i]["DP"]
+            Xj = design_points[j]["DP"]
+
+            differences = [
+
+                results[Xi][rep]
+                - results[Xj][rep]
+
+                for rep in range(R)
+            ]
+
+            mean_diff = sum(differences) / R
+
+            sd_diff = (
+
+                sum(
+                    (x - mean_diff) ** 2
+                    for x in differences
+                )
+
+                / (R - 1)
+
+            ) ** 0.5
+
+            half_width = (
+                t_value
+                * sd_diff
+                / (R ** 0.5)
+            )
+
+            ci_low = mean_diff - half_width
+            ci_high = mean_diff + half_width
+
+            if ci_high < 0:
+
+                conclusion = (
+                    f"{Xi} significantly better than {Xj}"
+                )
+
+            elif ci_low > 0:
+
+                conclusion = (
+                    f"{Xj} significantly better than {Xi}"
+                )
+
+            else:
+
+                conclusion = "No significant difference"
+
+            ws_pair.append([
+                f"{Xi} - {Xj}",
+                mean_diff,
+                sd_diff,
+                half_width,
+                ci_low,
+                ci_high,
+                conclusion
+            ])
+
+    # ============================================================
+    # SAVE
+    # ============================================================
+
+    wb.save(output_filename)
+
+    print("\n" + "="*80)
+    print("DONE")
+    print(f"Saved in: {output_filename}")
+    print("="*80)
